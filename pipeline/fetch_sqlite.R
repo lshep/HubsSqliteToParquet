@@ -6,7 +6,9 @@ if (length(args) == 0) {
 
 hub <- args[1]
 
+source("pipeline/utils.R")
 source("pipeline/hubs.R")
+
 cfg <- get_hub_config(hub)
 
 dir.create(dirname(cfg$sqlite_file), recursive = TRUE, showWarnings = FALSE)
@@ -15,10 +17,39 @@ message("Downloading: ", cfg$name)
 message("From URL: ", cfg$url)
 message("To file: ", cfg$sqlite_file)
 
-download.file(
-    url = cfg$url,
-    destfile = cfg$sqlite_file,
-    mode = "wb"
-)
+ok <- tryCatch({
+    download.file(url=cfg$url,
+                  destfile=cfg$sqlite_file,
+                  mode = "wb",
+                  quiet = TRUE)
+  TRUE
+}, error = function(e) {
+  message("Download error: ", e$message)
+  FALSE
+})
+
+fail_if(!ok, "SQLite download failed")
+assert_file_exists(cfg$sqlite_file)
+size <- file.info(cfg$sqlite_file)$size
+fail_if(is.na(size) || size < 100000, "Downloaded SQLite file suspiciously small")
+
+library(DBI)
+db <- DBI::dbConnect(RSQLite::SQLite(), cfg$sqlite_file)
+tables <- tryCatch({
+    db <- DBI::dbConnect(RSQLite::SQLite(), cfg$sqlite_file)
+    on.exit(DBI::dbDisconnect(db), add = TRUE)
+    DBI::dbListTables(db)
+}, error = function(e) {
+    stop(sprintf(
+        "Downloaded file is not a valid SQLite database: %s",
+        e$message
+    ))
+})
+fail_if(length(tables) == 0,
+        "SQLite file has no tables — download likely failed")
+key_tables <- c("biocversions", "input_sources", "location_prefixes",
+                "rdatapaths", "recipes", "resources", "statuses", "tags")
+fail_if(!all(key_tables %in% tables), "SQLite file likely missing tables — corrupt download")
 
 message("Download complete for ", cfg$name)
+quit(status = 0)
