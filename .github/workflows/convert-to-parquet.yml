@@ -37,13 +37,12 @@ jobs:
             libfreetype6-dev
 
       - name: Install R packages
-        run: |
-          set -e
-          Rscript -e 'install.packages(c(
-            "DBI",
-            "duckdb",
-            "RSQLite"
-          ), repos = "https://cloud.r-project.org")'
+        uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          packages: |
+            DBI
+            RSQLite
+            duckdb
 
       - name: Create pipeline directories
         run: |
