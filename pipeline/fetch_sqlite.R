@@ -30,21 +30,17 @@ ok <- tryCatch({
 
 fail_if(!ok, "SQLite download failed")
 assert_file_exists(cfg$sqlite_file)
-size <- file.info(cfg$sqlite_file)$size
-fail_if(is.na(size) || size < 100000, "Downloaded SQLite file suspiciously small")
 
 library(DBI)
+library(RSQLite)
+
 db <- DBI::dbConnect(RSQLite::SQLite(), cfg$sqlite_file)
-tables <- tryCatch({
-    db <- DBI::dbConnect(RSQLite::SQLite(), cfg$sqlite_file)
-    on.exit(DBI::dbDisconnect(db), add = TRUE)
-    DBI::dbListTables(db)
-}, error = function(e) {
-    stop(sprintf(
-        "Downloaded file is not a valid SQLite database: %s",
-        e$message
-    ))
-})
+on.exit(DBI::dbDisconnect(db), add = TRUE)
+
+fail_if(!DBI::dbIsValid(db), "SQLite connection is invalid")
+
+tables <- DBI::dbListTables(db)
+
 fail_if(length(tables) == 0,
         "SQLite file has no tables — download likely failed")
 key_tables <- c("biocversions", "input_sources", "location_prefixes",

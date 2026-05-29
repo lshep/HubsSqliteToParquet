@@ -51,6 +51,9 @@ fail_if(
 message("Discovering tables...")
 tables <- dbGetQuery(con, "SHOW ALL TABLES")
 
+message("DuckDB SHOW ALL TABLES columns:")
+print(names(tables))
+
 table_col <- "name"
 fail_if(!table_col %in% names(tables),
         sprintf("Unexpected SHOW ALL TABLES format: missing '%s' column",table_col))
