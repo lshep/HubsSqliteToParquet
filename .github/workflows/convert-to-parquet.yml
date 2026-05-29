@@ -1,0 +1,86 @@
+name: Convert Sqlite Hubs To Parquet 
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        hub:
+          - annotationhub
+          - experimenthub
+    env:
+      HUB: ${{ matrix.hub }}
+      BASE_DIR: parquet/${{ matrix.hub }}
+      SQLITE_DIR: data/${{ matrix.hub }}
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup R
+        uses: r-lib/actions/setup-r@v2
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libcurl4-openssl-dev \
+            libssl-dev \
+            libxml2-dev \
+            libfontconfig1-dev \
+            libfreetype6-dev
+
+      - name: Install R packages
+        run: |
+          set -e
+          Rscript -e 'install.packages(c(
+            "DBI",
+            "duckdb",
+            "RSQLite"
+          ), repos = "https://cloud.r-project.org")'
+
+      - name: Create pipeline directories
+        run: |
+          set -e
+          mkdir -p "${SQLITE_DIR}"
+          mkdir -p "${BASE_DIR}"
+
+      - name: Fetch SQLite database
+        run: |
+          set -e
+          Rscript pipeline/fetch_sqlite.R "${HUB}"
+
+      - name: Convert SQLite to parquet
+        run: |
+          set -e
+          Rscript pipeline/sqlite_to_parquet.R "${HUB}"
+
+      - name: Build curated parquet views
+        run: |
+          set -e
+          Rscript pipeline/create_views.R "${HUB}"
+
+      - name: Show parquet outputs
+        run: |
+          set -e
+          find "${BASE_DIR}" -type f -name "*.parquet" -ls
+
+      - name: Validate key outputs exist
+        run: |
+          set -e
+          test -f "${BASE_DIR}/resource_metadata.parquet"
+          test -f "${BASE_DIR}/resource_downloadlinks.parquet"
+          test -f "${BASE_DIR}/resource_full.parquet"
+
+      - name: Upload parquet artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.hub }}-parquet
+          path: ${{ env.BASE_DIR }}
+          retention-days: 1
