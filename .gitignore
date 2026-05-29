@@ -1,2 +1,4 @@
-data/*.sqlite3
-parquet/*.parquet
+data/annotationhub/*.sqlite3
+data/experimenthub/*.sqlite3
+parquet/annotationhub/*.parquet
+parquet/experimenthub/*.parquet
